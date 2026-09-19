@@ -1,191 +1,78 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Online Line Editor</title>
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #10141c;
-    color: white;
-}
-
-.header {
-    background: #1c2330;
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.header h2 {
-    margin: 0;
-    color: #61dafb;
-}
-
-.buttons button {
-    padding: 8px 12px;
-    margin: 3px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    background: #2563eb;
-    color: white;
-}
-
-.buttons button:hover {
-    background: #1d4ed8;
-}
-
-.editor-container {
-    display: flex;
-    width: 100%;
-    height: calc(100vh - 75px);
-    overflow: hidden;
-    background: #0d1117;
-}
-
-.line-numbers {
-    width: 55px;
-    padding: 15px 8px;
-    text-align: right;
-    color: #6b7280;
-    background: #161b22;
-    border-right: 1px solid #30363d;
-    font-family: monospace;
-    font-size: 15px;
-    line-height: 1.6;
-    white-space: pre;
-    overflow: hidden;
-    user-select: none;
-}
-
-#editor {
-    flex: 1;
-    padding: 15px;
-    border: none;
-    outline: none;
-    resize: none;
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: monospace;
-    font-size: 15px;
-    line-height: 1.6;
-    white-space: pre;
-    overflow: auto;
-    tab-size: 4;
-}
-
-</style>
+  <meta charset="UTF-8">
+  <title>Email Subject Line Encoder</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; }
+    textarea, input, select, button { width: 100%; margin-bottom: 12px; padding: 8px; }
+    .output { background: #f4f4f4; padding: 10px; word-break: break-all; font-family: monospace; }
+  </style>
 </head>
-
 <body>
 
-<div class="header">
+  <h2>Email Subject Encoder</h2>
 
-    <h2>Online Line Editor</h2>
+  <label>Subject Line Input:</label>
+  <input type="text" id="subjectInput" placeholder="Enter subject line...">
 
-    <div class="buttons">
-        <button onclick="copyText()">Copy</button>
-        <button onclick="downloadText()">Download</button>
-        <button onclick="clearText()">Clear</button>
-    </div>
+  <label>Character Set:</label>
+  <select id="charset">
+    <option value="UTF-8">UTF-8</option>
+    <option value="GB2312">GB2312</option>
+    <option value="ISO-8859-1">ISO-8859-1</option>
+  </select>
 
-</div>
+  <button onclick="generateEncoding()">Generate Variations</button>
 
-<div class="editor-container">
+  <h3>Outputs:</h3>
+  <p><strong>Base64 (B):</strong></p>
+  <div id="base64Output" class="output"></div>
 
-    <div id="lineNumbers" class="line-numbers">1</div>
+  <p><strong>Quoted-Printable (Q) with Noise:</strong></p>
+  <div id="qpOutput" class="output"></div>
 
-    <textarea
-        id="editor"
-        spellcheck="false"
-        placeholder="Start typing your content here..."
-    ></textarea>
+  <script>
+    // Noise characters (Zero-width spaces, joiners, soft hyphens)
+    const NOISE_BYTES = ['\u200B', '\u200C', '\u200D', '\u00AD', '\uFEFF'];
 
-</div>
-
-<script>
-
-const editor = document.getElementById("editor");
-const lineNumbers = document.getElementById("lineNumbers");
-
-function updateLineNumbers() {
-
-    const lines = editor.value.split("\n").length;
-
-    let numbers = "";
-
-    for (let i = 1; i <= lines; i++) {
-        numbers += i + "\n";
+    function injectNoise(text) {
+      return text.split('').map(char => {
+        // Randomly insert a noise byte after characters
+        if (Math.random() > 0.6) {
+          const randomNoise = NOISE_BYTES[Math.floor(Math.random() * NOISE_BYTES.length)];
+          return char + randomNoise;
+        }
+        return char;
+      }).join('');
     }
 
-    lineNumbers.textContent = numbers;
-
-}
-
-editor.addEventListener("input", updateLineNumbers);
-
-editor.addEventListener("scroll", () => {
-
-    lineNumbers.scrollTop = editor.scrollTop;
-
-});
-
-async function copyText() {
-
-    try {
-        await navigator.clipboard.writeText(editor.value);
-        alert("Text copied successfully!");
-    } catch (error) {
-        alert("Unable to copy text.");
+    function encodeQuotedPrintable(text) {
+      return text.split('').map(c => {
+        const code = c.charCodeAt(0);
+        // Convert non-alphanumeric chars to hex format =XX
+        if ((code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+          return c;
+        }
+        return '=' + code.toString(16).toUpperCase().padStart(2, '0');
+      }).join('');
     }
 
-}
+    function generateEncoding() {
+      const input = document.getElementById('subjectInput').value;
+      const charset = document.getElementById('charset').value;
 
-function downloadText() {
+      if (!input) return;
 
-    const blob = new Blob([editor.value], {
-        type: "text/plain"
-    });
+      // 1. Base64 Encoding
+      const b64 = btoa(unescape(encodeURIComponent(input)));
+      document.getElementById('base64Output').innerText = `=?${charset}?B?${b64}?=`;
 
-    const link = document.createElement("a");
-
-    link.href = URL.createObjectURL(blob);
-    link.download = "my-editor-text.txt";
-
-    link.click();
-
-    URL.revokeObjectURL(link.href);
-
-}
-
-function clearText() {
-
-    if (confirm("Are you sure you want to clear the editor?")) {
-
-        editor.value = "";
-        updateLineNumbers();
-
+      // 2. Quoted-Printable with Noise Injection
+      const noisyText = injectNoise(input);
+      const qp = encodeQuotedPrintable(noisyText);
+      document.getElementById('qpOutput').innerText = `=?${charset}?Q?${qp}?=`;
     }
-
-}
-
-updateLineNumbers();
-
-</script>
-
+  </script>
 </body>
 </html>
